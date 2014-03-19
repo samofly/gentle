@@ -44,7 +44,9 @@ func main() {
 	fmt.Fprintln(os.Stderr, "Please, enter g-code lines below:")
 	in := bufio.NewScanner(os.Stdin)
 	for in.Scan() {
-		if _, err := fmt.Fprintln(s, in.Text()); err != nil {
+		cmd := fmt.Sprintf(`{"gc":"%s"}`, in.Text())
+		fmt.Println(cmd)
+		if _, err := fmt.Fprintln(s, cmd); err != nil {
 			log.Fatal("Failed to write to serial port:", err)
 		}
 	}
