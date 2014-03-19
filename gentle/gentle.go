@@ -2,15 +2,27 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"log"
-	"time"
+	"os"
 
 	"github.com/samofly/sers"
 )
 
 var ttyDev = flag.String("dev", "/dev/ttyUSB0", "Serial device to open")
+
+func scan(s sers.SerialPort) {
+	scanner := bufio.NewScanner(s)
+	for scanner.Scan() {
+		fmt.Println(scanner.Text())
+	}
+	if err := scanner.Err(); err != nil {
+		log.Fatal("Failed to read from serial port:", err)
+	}
+	log.Fatal("Serial port closed")
+}
 
 func main() {
 	if *ttyDev == "" {
@@ -27,18 +39,16 @@ func main() {
 	}
 	log.Printf("Mode has been set")
 
-	if _, err = s.Write([]byte("{\"sr\":\"\"}\n")); err != nil {
-		log.Fatal("Failed to write to serial port:", err)
-	}
-	log.Print("Command sent, waiting for reply...")
+	go scan(s)
 
-	for {
-		buf := make([]byte, 100)
-		n, err := s.Read(buf)
-		if err != nil {
-			log.Fatal("Failed to read from serial port:", err)
+	fmt.Fprintln(os.Stderr, "Please, enter g-code lines below:")
+	in := bufio.NewScanner(os.Stdin)
+	for in.Scan() {
+		if _, err := fmt.Fprintln(s, in.Text()); err != nil {
+			log.Fatal("Failed to write to serial port:", err)
 		}
-		fmt.Printf(string(buf[:n]))
-		time.Sleep(20 * time.Millisecond)
+	}
+	if err := in.Err(); err != nil {
+		log.Fatal("Failed to read from stdin:", err)
 	}
 }
