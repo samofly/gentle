@@ -1,0 +1,9 @@
+TODO for Gentle G-Code sender:
+
+1. Read TinyG config at the beginning; check that the firmware version is supported
+2. Save TinyG config to json
+3. Load TinyG config from json and send to TinyG
+4. Only allow sending G-code if homed
+5. Only send G-code from the whitelist
+6. Parse TinyG responses, do not overflow the buffer, track current position
+7. Do not send gcode that will go out of the working area
