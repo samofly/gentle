@@ -54,6 +54,8 @@ func sanitizeCmd(cmd string) (string, error) {
 		return sanitizeG(cmd)
 	case 'F':
 		return cmd, nil
+	case 'M':
+		return cmd, nil
 	default:
 		return "", fmt.Errorf("sanitizeCmd(%q): %q command not recognized", cmd, cmd[0])
 	}
