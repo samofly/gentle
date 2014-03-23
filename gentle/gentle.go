@@ -3,6 +3,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -14,10 +15,20 @@ import (
 
 var ttyDev = flag.String("dev", "/dev/ttyUSB0", "Serial device to open")
 
-func scan(s sers.SerialPort) {
+type response struct {
+	line string
+	m    map[string]interface{}
+}
+
+func scan(s sers.SerialPort, ch chan<- *response) {
 	scanner := bufio.NewScanner(s)
 	for scanner.Scan() {
-		fmt.Println(scanner.Text())
+		line := scanner.Text()
+		var m map[string]interface{}
+		if err := json.Unmarshal([]byte(line), &m); err != nil {
+			log.Fatalf("Failed to parse TinyG response: %q, err: %v", line, err)
+		}
+		ch <- &response{line: line, m: m}
 	}
 	if err := scanner.Err(); err != nil {
 		log.Fatal("Failed to read from serial port:", err)
@@ -65,7 +76,8 @@ func main() {
 	}
 	log.Printf("Mode has been set")
 
-	go scan(s)
+	respCh := make(chan *response)
+	go scan(s, respCh)
 
 	fmt.Fprintln(os.Stderr, "Please, enter g-code lines below:")
 	in := bufio.NewScanner(os.Stdin)
@@ -85,6 +97,14 @@ func main() {
 		fmt.Println(cmd)
 		if _, err := fmt.Fprintln(s, cmd); err != nil {
 			log.Fatal("Failed to write to serial port:", err)
+		}
+		// Waiting for TinyG to confirm it
+		for {
+			resp := <-respCh
+			fmt.Println("resp:", resp)
+			if resp.m["r"] != nil {
+				break
+			}
 		}
 	}
 	if err := in.Err(); err != nil {
