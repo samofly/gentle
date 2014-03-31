@@ -13,8 +13,11 @@ import (
 	"github.com/samofly/sers"
 )
 
-var ttyDev = flag.String("dev", "/dev/ttyUSB0", "Serial device to open")
-var baudRate = flag.Int("rate", 115200, "Baud rate")
+var (
+	ttyDev   = flag.String("dev", "/dev/ttyUSB0", "Serial device to open")
+	baudRate = flag.Int("rate", 115200, "Baud rate")
+	jsonMode = flag.Bool("json", true, "Whether to use TinyG json protocol. If false, just send raw gcode")
+)
 
 type response struct {
 	line string
@@ -98,7 +101,10 @@ func main() {
 		if gcode == "" {
 			continue
 		}
-		cmd := fmt.Sprintf(`{"gc":"%s"}`, gcode)
+		cmd := gcode
+		if *jsonMode {
+			cmd = fmt.Sprintf(`{"gc":"%s"}`, cmd)
+		}
 		fmt.Println(cmd)
 		if _, err := fmt.Fprintln(s, cmd); err != nil {
 			log.Fatal("Failed to write to serial port:", err)
