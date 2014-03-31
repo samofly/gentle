@@ -64,10 +64,12 @@ func sanitizeCmd(cmd string) (string, error) {
 }
 
 func main() {
+	flag.Parse()
+
 	if *ttyDev == "" {
 		log.Fatal("-dev (serial device) is not specified.")
 	}
-	s, err := sers.Open("/dev/ttyUSB0")
+	s, err := sers.Open(*ttyDev)
 	if err != nil {
 		log.Fatalf("Could not open serial port at %s: %v", *ttyDev, err)
 	}
