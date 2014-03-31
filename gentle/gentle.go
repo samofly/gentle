@@ -14,6 +14,7 @@ import (
 )
 
 var ttyDev = flag.String("dev", "/dev/ttyUSB0", "Serial device to open")
+var baudRate = flag.Int("rate", 115200, "Baud rate")
 
 type response struct {
 	line string
@@ -75,7 +76,7 @@ func main() {
 	}
 	defer s.Close()
 	log.Print("Port opened at ", *ttyDev)
-	if err = s.SetMode(115200, 8, 0, 1, 0); err != nil {
+	if err = s.SetMode(*baudRate, 8, 0, 1, 0); err != nil {
 		log.Fatal("Failed to set mode:", err)
 	}
 	log.Printf("Mode has been set")
