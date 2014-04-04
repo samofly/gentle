@@ -10,7 +10,6 @@ import (
 	"log"
 	"os"
 	"strings"
-	"unsafe"
 )
 
 var (
@@ -93,7 +92,7 @@ func main() {
 	}
 	//arg := &[128]byte{0, 0, 0, 0, 0, 0, 0, 0, 0xb2, 0x14, 0, 0, 0, 0, 0, 0, 0,
 	//	0x03, 0x1c, 0x7f, 0x15, 0x01, 0, 0x01, 0, 0x11, 0x13, 0x1a, 0, 0x12, 0x0f, 0x17, 0x16, 0, 0, 0 /* c_cc */}
-	if err = ioctl(s.Fd(), TCSETSF, unsafe.Pointer(arg)); err != nil {
+	if err = ioctl(s.Fd(), TCSETSF, arg); err != nil {
 		log.Fatal("iotcl(TCSETSF): ", err)
 	}
 

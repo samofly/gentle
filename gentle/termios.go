@@ -141,8 +141,8 @@ type flag_t uint32
 
 const NCCS = 32
 
-func ioctl(fd uintptr, req uint, arg unsafe.Pointer) error {
-	_, _, err := syscall.RawSyscall(syscall.SYS_IOCTL, fd, uintptr(req), uintptr(arg))
+func ioctl(fd uintptr, req uint, tio *termios) error {
+	_, _, err := syscall.RawSyscall(syscall.SYS_IOCTL, fd, uintptr(req), uintptr(unsafe.Pointer(tio)))
 	if err != 0 {
 		return err
 	}
@@ -174,10 +174,16 @@ func cfsetispeed(tio *termios, speed speed_t) error {
 }
 
 func tcgetattr(fd uintptr, tio *termios) error {
-	return ioctl(fd, TCGETS, unsafe.Pointer(tio))
+	return ioctl(fd, TCGETS, tio)
 }
 
-// int tcsetattr (int, int, const struct termios *);
+func tcsetattr(fd uintptr, act int, tio *termios) error {
+	if act < 0 || act > 2 {
+		return fmt.Errorf("invalid act: %d. Want 0 or 1", act)
+	}
+	return ioctl(fd, uint(TCSETS+act), tio)
+}
+
 //
 // int tcsendbreak (int, int);
 // int tcdrain (int);
