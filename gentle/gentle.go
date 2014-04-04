@@ -76,18 +76,6 @@ func ioctl(fd uintptr, req uint, arg unsafe.Pointer) (err syscall.Errno) {
 }
 
 const TCSETSF = 0x5404
-const NCCS = 32
-
-type termios struct {
-	c_ifflag uint32     /* input mode flags */
-	c_oflag  uint32     /* output mode flags */
-	c_cflags uint32     /* control mode flags */
-	c_lflag  uint32     /* local mode flags */
-	c_line   byte       /* line discipline */
-	c_cc     [NCCS]byte /* control characters */
-	c_ispeed uint32     /* input speed */
-	c_ospeed uint32     /* output speed */
-}
 
 const O_NOCTTY = 0400 /* Not fcntl.  */
 const O_NONBLOCK = 00004000
@@ -108,8 +96,8 @@ func main() {
 	// Now, we need to set the parameters.
 	// Currently, just call naked ioctl with pre-baked params.
 	arg := &termios{
-		c_cflags: 0x1cb2,
-		c_cc:     [NCCS]byte{0x03, 0x1c, 0x7f, 0x15, 0x01, 0, 0x01, 0, 0x11, 0x13, 0x1a, 0, 0x12, 0x0f, 0x17, 0x16, 0, 0, 0},
+		c_cflag: 0x1cb2,
+		c_cc:    [NCCS]byte{0x03, 0x1c, 0x7f, 0x15, 0x01, 0, 0x01, 0, 0x11, 0x13, 0x1a, 0, 0x12, 0x0f, 0x17, 0x16, 0, 0, 0},
 	}
 	//arg := &[128]byte{0, 0, 0, 0, 0, 0, 0, 0, 0xb2, 0x14, 0, 0, 0, 0, 0, 0, 0,
 	//	0x03, 0x1c, 0x7f, 0x15, 0x01, 0, 0x01, 0, 0x11, 0x13, 0x1a, 0, 0x12, 0x0f, 0x17, 0x16, 0, 0, 0 /* c_cc */}
