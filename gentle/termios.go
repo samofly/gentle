@@ -129,6 +129,11 @@
 // Startup files: crt/*
 package main
 
+import (
+	"errors"
+	"fmt"
+)
+
 type speed_t uint32
 type flag_t uint32
 
@@ -142,8 +147,22 @@ func cfgetispeed(tio *termios) speed_t {
 	return cfgetospeed(tio)
 }
 
-// int cfsetospeed (struct termios *, speed_t);
-// int cfsetispeed (struct termios *, speed_t);
+func cfsetospeed(tio *termios, speed speed_t) error {
+	if (speed & ^speed_t(CBAUD)) != 0 {
+		return fmt.Errorf("cfsetospeed: speed=%0x, does not fit to mask: %0x", speed, CBAUD)
+	}
+	tio.c_cflag &= flag_t(^speed_t(CBAUD))
+	tio.c_cflag |= flag_t(speed)
+	return nil
+}
+
+func cfsetispeed(tio *termios, speed speed_t) error {
+	if speed == 0 {
+		return errors.New("cfsetispeed: speed=0, must be positive")
+	}
+	return cfsetospeed(tio, speed)
+}
+
 //
 // int tcgetattr (int, struct termios *);
 // int tcsetattr (int, int, const struct termios *);
