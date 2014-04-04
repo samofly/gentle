@@ -134,8 +134,14 @@ type flag_t uint32
 
 const NCCS = 32
 
-// speed_t cfgetospeed (const struct termios *);
-// speed_t cfgetispeed (const struct termios *);
+func cfgetospeed(tio *termios) speed_t {
+	return speed_t(tio.c_cflag & CBAUD)
+}
+
+func cfgetispeed(tio *termios) speed_t {
+	return cfgetospeed(tio)
+}
+
 // int cfsetospeed (struct termios *, speed_t);
 // int cfsetispeed (struct termios *, speed_t);
 //
