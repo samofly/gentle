@@ -223,5 +223,3 @@ func cfmakeraw(tio *termios) {
 	tio.c_cc[VMIN] = 1
 	tio.c_cc[VTIME] = 0
 }
-
-// int cfsetspeed(struct termios *, speed_t);
