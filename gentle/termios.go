@@ -214,6 +214,14 @@ func tcgetsid(fd uintptr) (int, error) {
 	return sid, nil
 }
 
-//
-// void cfmakeraw(struct termios *);
+func cfmakeraw(tio *termios) {
+	tio.c_iflag &= ^flag_t(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL | IXON)
+	tio.c_oflag &= ^flag_t(OPOST)
+	tio.c_lflag &= ^flag_t(ECHO | ECHONL | ICANON | ISIG | IEXTEN)
+	tio.c_cflag &= ^flag_t(CSIZE | PARENB)
+	tio.c_cflag |= flag_t(CS8)
+	tio.c_cc[VMIN] = 1
+	tio.c_cc[VTIME] = 0
+}
+
 // int cfsetspeed(struct termios *, speed_t);
