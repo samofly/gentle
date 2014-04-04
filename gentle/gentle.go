@@ -6,11 +6,12 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"strings"
-
-	"github.com/samofly/sers"
+	"syscall"
+	"unsafe"
 )
 
 var (
@@ -24,7 +25,7 @@ type response struct {
 	m    map[string]interface{}
 }
 
-func scan(s sers.SerialPort, ch chan<- *response) {
+func scan(s io.Reader, ch chan<- *response) {
 	scanner := bufio.NewScanner(s)
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -69,21 +70,54 @@ func sanitizeCmd(cmd string) (string, error) {
 	return cmd, nil
 }
 
+func ioctl(fd uintptr, req uint, arg unsafe.Pointer) (err syscall.Errno) {
+	_, _, err = syscall.RawSyscall(syscall.SYS_IOCTL, fd, uintptr(req), uintptr(arg))
+	return
+}
+
+const TCSETSF = 0x5404
+const NCCS = 32
+
+type termios struct {
+	c_ifflag uint       /* input mode flags */
+	c_oflag  uint       /* output mode flags */
+	c_cflags uint       /* control mode flags */
+	c_lflag  uint       /* local mode flags */
+	c_line   byte       /* line discipline */
+	c_cc     [NCCS]byte /* control characters */
+	c_ispeed uint       /* input speed */
+	c_ospeed uint       /* output speed */
+}
+
+const O_NOCTTY = 0400 /* Not fcntl.  */
+const O_NONBLOCK = 00004000
+
 func main() {
 	flag.Parse()
 
 	if *ttyDev == "" {
 		log.Fatal("-dev (serial device) is not specified.")
 	}
-	s, err := sers.Open(*ttyDev)
+	//s, err := sers.Open(*ttyDev)
+	s, err := os.OpenFile(*ttyDev, os.O_RDWR|O_NOCTTY /*|O_NONBLOCK*/, 0)
 	if err != nil {
 		log.Fatalf("Could not open serial port at %s: %v", *ttyDev, err)
 	}
 	defer s.Close()
-	log.Print("Port opened at ", *ttyDev)
-	if err = s.SetMode(*baudRate, 8, 0, 1, 0); err != nil {
-		log.Fatal("Failed to set mode: ", err)
+
+	// Now, we need to set the parameters.
+	// Currently, just call naked ioctl with pre-baked params.
+	//arg := &termios{c_cflags: 0x1cb2}
+	arg := &[128]byte{0, 0, 0, 0, 0, 0, 0, 0, 0xb2, 0x14, 0, 0, 0, 0, 0, 0, 0,
+		0x03, 0x1c, 0x7f, 0x15, 0x01, 0, 0x01, 0, 0x11, 0x13, 0x1a, 0, 0x12, 0x0f, 0x17, 0x16, 0, 0, 0 /* c_cc */}
+	if errno := ioctl(s.Fd(), TCSETSF, unsafe.Pointer(arg)); errno != 0 {
+		log.Fatal("iotcl(TCSETSF) failed, errno=", errno)
 	}
+
+	log.Print("Port opened at ", *ttyDev)
+	//	if err = s.SetMode(*baudRate, 8, 0, 1, 0); err != nil {
+	//		log.Fatal("Failed to set mode: ", err)
+	//	}
 	log.Printf("Mode has been set")
 
 	respCh := make(chan *response)
