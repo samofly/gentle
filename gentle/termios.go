@@ -206,7 +206,14 @@ func tcflow(fd uintptr, action int) error {
 	return rawIoctl(fd, TCXONC, uintptr(action))
 }
 
-// pid_t tcgetsid (int);
+func tcgetsid(fd uintptr) (int, error) {
+	var sid int
+	if err := rawIoctl(fd, TIOCGSID, uintptr(unsafe.Pointer(&sid))); err != nil {
+		return 0, err
+	}
+	return sid, nil
+}
+
 //
 // void cfmakeraw(struct termios *);
 // int cfsetspeed(struct termios *, speed_t);

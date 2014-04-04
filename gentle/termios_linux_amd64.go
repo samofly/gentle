@@ -302,4 +302,6 @@ const (
 	TCSBRK  = 0x5409
 	TCXONC  = 0x540A
 	TCFLSH  = 0x540B
+
+	TIOCGSID = 0x5429
 )
