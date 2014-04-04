@@ -202,8 +202,10 @@ func tcflush(fd uintptr, queue int) error {
 	return rawIoctl(fd, TCFLSH, uintptr(queue))
 }
 
-// int tcflow (int, int);
-//
+func tcflow(fd uintptr, action int) error {
+	return rawIoctl(fd, TCXONC, uintptr(action))
+}
+
 // pid_t tcgetsid (int);
 //
 // void cfmakeraw(struct termios *);
