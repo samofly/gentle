@@ -198,7 +198,10 @@ func tcdrain(fd uintptr) error {
 	return rawIoctl(fd, TCSBRK, uintptr(1))
 }
 
-// int tcflush (int, int);
+func tcflush(fd uintptr, queue int) error {
+	return rawIoctl(fd, TCFLSH, uintptr(queue))
+}
+
 // int tcflow (int, int);
 //
 // pid_t tcgetsid (int);
