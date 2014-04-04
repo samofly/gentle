@@ -147,7 +147,6 @@ func rawIoctl(fd uintptr, req uint, arg uintptr) error {
 		return err
 	}
 	return nil
-
 }
 
 func ioctl(fd uintptr, req uint, tio *termios) error {
