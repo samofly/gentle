@@ -184,8 +184,11 @@ func tcsetattr(fd uintptr, act int, tio *termios) error {
 	return ioctl(fd, uint(TCSETS+act), tio)
 }
 
-//
-// int tcsendbreak (int, int);
+func tcsendbreak(fd uintptr, dur int) error {
+	/* nonzero duration is implementation-defined, so ignore it */
+	return ioctl(fd, TCSBRK, nil)
+}
+
 // int tcdrain (int);
 // int tcflush (int, int);
 // int tcflow (int, int);
