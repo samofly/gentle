@@ -132,12 +132,22 @@ package main
 import (
 	"errors"
 	"fmt"
+	"syscall"
+	"unsafe"
 )
 
 type speed_t uint32
 type flag_t uint32
 
 const NCCS = 32
+
+func ioctl(fd uintptr, req uint, arg unsafe.Pointer) error {
+	_, _, err := syscall.RawSyscall(syscall.SYS_IOCTL, fd, uintptr(req), uintptr(arg))
+	if err != 0 {
+		return err
+	}
+	return nil
+}
 
 func cfgetospeed(tio *termios) speed_t {
 	return speed_t(tio.c_cflag & CBAUD)
@@ -163,8 +173,10 @@ func cfsetispeed(tio *termios, speed speed_t) error {
 	return cfsetospeed(tio, speed)
 }
 
-//
-// int tcgetattr (int, struct termios *);
+func tcgetattr(fd uintptr, tio *termios) error {
+	return ioctl(fd, TCGETS, unsafe.Pointer(tio))
+}
+
 // int tcsetattr (int, int, const struct termios *);
 //
 // int tcsendbreak (int, int);

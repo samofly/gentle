@@ -288,3 +288,18 @@ const (
 	EXTPROC = 0200000
 	XTABS   = 0014000
 )
+
+// Constants from ./arch/x86_64/bits/ioctl.h
+const (
+	TCGETS  = 0x5401
+	TCSETS  = 0x5402
+	TCSETSW = 0x5403
+	TCSETSF = 0x5404
+	TCGETA  = 0x5405
+	TCSETA  = 0x5406
+	TCSETAW = 0x5407
+	TCSETAF = 0x5408
+	TCSBRK  = 0x5409
+	TCXONC  = 0x540A
+	TCFLSH  = 0x540B
+)
