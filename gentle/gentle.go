@@ -29,8 +29,10 @@ func scan(s sers.SerialPort, ch chan<- *response) {
 	for scanner.Scan() {
 		line := scanner.Text()
 		var m map[string]interface{}
-		if err := json.Unmarshal([]byte(line), &m); err != nil {
-			log.Fatalf("Failed to parse TinyG response: %q, err: %v", line, err)
+		if *jsonMode {
+			if err := json.Unmarshal([]byte(line), &m); err != nil {
+				log.Fatalf("Failed to parse TinyG response: %q, err: %v", line, err)
+			}
 		}
 		ch <- &response{line: line, m: m}
 	}
@@ -80,7 +82,7 @@ func main() {
 	defer s.Close()
 	log.Print("Port opened at ", *ttyDev)
 	if err = s.SetMode(*baudRate, 8, 0, 1, 0); err != nil {
-		log.Fatal("Failed to set mode:", err)
+		log.Fatal("Failed to set mode: ", err)
 	}
 	log.Printf("Mode has been set")
 
@@ -107,7 +109,7 @@ func main() {
 		}
 		fmt.Println(cmd)
 		if _, err := fmt.Fprintln(s, cmd); err != nil {
-			log.Fatal("Failed to write to serial port:", err)
+			log.Fatal("Failed to write to serial port: ", err)
 		}
 		// Waiting for TinyG to confirm it
 		for {
@@ -119,6 +121,6 @@ func main() {
 		}
 	}
 	if err := in.Err(); err != nil {
-		log.Fatal("Failed to read from stdin:", err)
+		log.Fatal("Failed to read from stdin: ", err)
 	}
 }
