@@ -218,7 +218,7 @@ func cfmakeraw(tio *termios) {
 	tio.c_oflag &= ^flag_t(OPOST)
 	tio.c_lflag &= ^flag_t(ECHO | ECHONL | ICANON | ISIG | IEXTEN)
 	tio.c_cflag &= ^flag_t(CSIZE | PARENB)
-	tio.c_cflag |= flag_t(CS8)
+	tio.c_cflag |= flag_t(CS8 | CLOCAL | CREAD | HUPCL)
 	tio.c_cc[VMIN] = 1
 	tio.c_cc[VTIME] = 0
 }
