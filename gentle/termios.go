@@ -141,12 +141,17 @@ type flag_t uint32
 
 const NCCS = 32
 
-func ioctl(fd uintptr, req uint, tio *termios) error {
-	_, _, err := syscall.RawSyscall(syscall.SYS_IOCTL, fd, uintptr(req), uintptr(unsafe.Pointer(tio)))
+func rawIoctl(fd uintptr, req uint, arg uintptr) error {
+	_, _, err := syscall.RawSyscall(syscall.SYS_IOCTL, fd, uintptr(req), arg)
 	if err != 0 {
 		return err
 	}
 	return nil
+
+}
+
+func ioctl(fd uintptr, req uint, tio *termios) error {
+	return rawIoctl(fd, req, uintptr(unsafe.Pointer(tio)))
 }
 
 func cfgetospeed(tio *termios) speed_t {
@@ -186,10 +191,13 @@ func tcsetattr(fd uintptr, act int, tio *termios) error {
 
 func tcsendbreak(fd uintptr, dur int) error {
 	/* nonzero duration is implementation-defined, so ignore it */
-	return ioctl(fd, TCSBRK, nil)
+	return rawIoctl(fd, TCSBRK, uintptr(0))
 }
 
-// int tcdrain (int);
+func tcdrain(fd uintptr) error {
+	return rawIoctl(fd, TCSBRK, uintptr(1))
+}
+
 // int tcflush (int, int);
 // int tcflow (int, int);
 //
