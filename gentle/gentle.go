@@ -69,7 +69,6 @@ func sanitizeCmd(cmd string) (string, error) {
 }
 
 const O_NOCTTY = 0400 /* Not fcntl.  */
-const O_NONBLOCK = 00004000
 
 func main() {
 	flag.Parse()
@@ -77,12 +76,12 @@ func main() {
 	if *ttyDev == "" {
 		log.Fatal("-dev (serial device) is not specified.")
 	}
-	//s, err := sers.Open(*ttyDev)
-	s, err := os.OpenFile(*ttyDev, os.O_RDWR|O_NOCTTY /*|O_NONBLOCK*/, 0)
+	s, err := os.OpenFile(*ttyDev, os.O_RDWR|O_NOCTTY, 0)
 	if err != nil {
 		log.Fatalf("Could not open serial port at %s: %v", *ttyDev, err)
 	}
 	defer s.Close()
+	log.Print("Port opened at ", *ttyDev)
 
 	tio := new(termios)
 	cfmakeraw(tio)
@@ -91,23 +90,10 @@ func main() {
 	}
 	log.Printf("tio: %x", tio)
 
-	// Now, we need to set the parameters.
-	// Currently, just call naked ioctl with pre-baked params.
-	arg := &termios{
-		c_cflag: 0x1cb2,
-		c_cc:    [NCCS]byte{0x03, 0x1c, 0x7f, 0x15, 0x01, 0, 0x01, 0, 0x11, 0x13, 0x1a, 0, 0x12, 0x0f, 0x17, 0x16, 0, 0, 0},
-	}
-	log.Printf("arg: %x", arg)
-	//arg := &[128]byte{0, 0, 0, 0, 0, 0, 0, 0, 0xb2, 0x14, 0, 0, 0, 0, 0, 0, 0,
-	//	0x03, 0x1c, 0x7f, 0x15, 0x01, 0, 0x01, 0, 0x11, 0x13, 0x1a, 0, 0x12, 0x0f, 0x17, 0x16, 0, 0, 0 /* c_cc */}
 	if err = ioctl(s.Fd(), TCSETSF, tio); err != nil {
 		log.Fatal("iotcl(TCSETSF): ", err)
 	}
 
-	log.Print("Port opened at ", *ttyDev)
-	//	if err = s.SetMode(*baudRate, 8, 0, 1, 0); err != nil {
-	//		log.Fatal("Failed to set mode: ", err)
-	//	}
 	log.Printf("Mode has been set")
 
 	respCh := make(chan *response)
