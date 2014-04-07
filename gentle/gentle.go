@@ -10,6 +10,8 @@ import (
 	"log"
 	"os"
 	"strings"
+
+	"github.com/samofly/serial"
 )
 
 var (
@@ -68,33 +70,18 @@ func sanitizeCmd(cmd string) (string, error) {
 	return cmd, nil
 }
 
-const O_NOCTTY = 0400 /* Not fcntl.  */
-
 func main() {
 	flag.Parse()
 
 	if *ttyDev == "" {
 		log.Fatal("-dev (serial device) is not specified.")
 	}
-	s, err := os.OpenFile(*ttyDev, os.O_RDWR|O_NOCTTY, 0)
+	s, err := serial.Open(*ttyDev, *baudRate)
 	if err != nil {
 		log.Fatalf("Could not open serial port at %s: %v", *ttyDev, err)
 	}
 	defer s.Close()
 	log.Print("Port opened at ", *ttyDev)
-
-	tio := new(termios)
-	cfmakeraw(tio)
-	if err := cfsetospeed(tio, speed_t(B115200)); err != nil {
-		log.Fatal(err)
-	}
-	log.Printf("tio: %x", tio)
-
-	if err = ioctl(s.Fd(), TCSETSF, tio); err != nil {
-		log.Fatal("iotcl(TCSETSF): ", err)
-	}
-
-	log.Printf("Mode has been set")
 
 	respCh := make(chan *response)
 	go scan(s, respCh)
