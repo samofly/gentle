@@ -7,3 +7,29 @@ TODO for Gentle G-Code sender:
 5. Only send G-code from the whitelist
 6. Parse TinyG responses, do not overflow the buffer, track current position
 7. Do not send gcode that will go out of the working area
+
+Commands to implement (console and web):
+
+1. Connect to the mill
+2. Save settings
+3. Enter g-code
+4. Play g-code files from the staging directory
+5. Upload g-code file to the staging directory
+6. List files in the staging directory
+7. Get current state
+8. Preview by interpreting g-code file
+9. Jog
+10. Users: login, add a new user, delete a user
+11. Home (X, Y, Z, XY, XYZ)
+12. Set G92 offsets (X, Y, Z, XY, XYZ)
+13. Reset G92 offsets
+14. Start / stop spindle
+15. Pause job
+
+Commands will look like:
+
+{ "cmd" : "connect",
+  "args": { "dev": "ttyUSB0", "baud": 115200 },
+}
+
+Default values will be taken from the config.
