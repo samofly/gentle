@@ -41,7 +41,8 @@ func scan(s io.Reader, ch chan<- *response) {
 	if err := scanner.Err(); err != nil {
 		log.Fatal("Failed to read from serial port:", err)
 	}
-	log.Fatal("Serial port closed")
+	close(ch)
+	log.Println("Serial port closed")
 }
 
 // sanitizeG handle Gnn commands. cmd is upper-case, trimmed and starts with 'G'
@@ -113,6 +114,9 @@ func send(s io.Writer, toCh <-chan string, respCh <-chan *response) {
 			if _, err := fmt.Fprintln(s, cmd); err != nil {
 				log.Fatal("Failed to write to serial port: ", err)
 			}
+			if !*jsonMode {
+				continue
+			}
 			// Waiting for TinyG to confirm it
 			for {
 				resp := <-respCh
@@ -156,6 +160,10 @@ func main() {
 	fmt.Fprintln(os.Stderr, "Please, enter g-code lines below:")
 	in := bufio.NewScanner(os.Stdin)
 	for in.Scan() {
+		if !*jsonMode {
+			toCh <- strings.TrimSpace(in.Text())
+			continue
+		}
 		gcode, err := sanitizeCmd(in.Text())
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Invalid gcode: %v\n", err)
@@ -167,11 +175,7 @@ func main() {
 		if gcode == "" {
 			continue
 		}
-		cmd := gcode
-		if *jsonMode {
-			cmd = fmt.Sprintf(`{"gc":"%s"}`, cmd)
-		}
-		toCh <- cmd
+		toCh <- fmt.Sprintf(`{"gc":"%s"}`, gcode)
 	}
 	if err := in.Err(); err != nil {
 		log.Fatal("Failed to read from stdin: ", err)
