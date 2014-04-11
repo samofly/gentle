@@ -70,6 +70,39 @@ func sanitizeCmd(cmd string) (string, error) {
 	return cmd, nil
 }
 
+func send(s io.Writer, toCh <-chan string, respCh <-chan *response) {
+	for {
+		select {
+		case cmd := <-toCh:
+			if cmd == "" {
+				continue
+			}
+			fmt.Println(cmd)
+			if _, err := fmt.Fprintln(s, cmd); err != nil {
+				log.Fatal("Failed to write to serial port: ", err)
+			}
+			// Waiting for TinyG to confirm it
+			for {
+				resp := <-respCh
+				if resp == nil {
+					// channel is closed
+					return
+				}
+				fmt.Println("resp:", resp)
+				if resp.m["r"] != nil {
+					break
+				}
+			}
+		case resp := <-respCh:
+			if resp == nil {
+				// channel is closed
+				return
+			}
+			fmt.Println("resp:", resp)
+		}
+	}
+}
+
 func main() {
 	flag.Parse()
 
@@ -84,7 +117,9 @@ func main() {
 	log.Print("Port opened at ", *ttyDev)
 
 	respCh := make(chan *response)
+	toCh := make(chan string)
 	go scan(s, respCh)
+	go send(s, toCh, respCh)
 
 	fmt.Fprintln(os.Stderr, "Please, enter g-code lines below:")
 	in := bufio.NewScanner(os.Stdin)
@@ -104,18 +139,7 @@ func main() {
 		if *jsonMode {
 			cmd = fmt.Sprintf(`{"gc":"%s"}`, cmd)
 		}
-		fmt.Println(cmd)
-		if _, err := fmt.Fprintln(s, cmd); err != nil {
-			log.Fatal("Failed to write to serial port: ", err)
-		}
-		// Waiting for TinyG to confirm it
-		for {
-			resp := <-respCh
-			fmt.Println("resp:", resp)
-			if resp.m["r"] != nil {
-				break
-			}
-		}
+		toCh <- cmd
 	}
 	if err := in.Err(); err != nil {
 		log.Fatal("Failed to read from stdin: ", err)
