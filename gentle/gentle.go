@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"os"
 	"strings"
 
@@ -70,7 +71,38 @@ func sanitizeCmd(cmd string) (string, error) {
 	return cmd, nil
 }
 
+// state is the cnc machine state
+type state struct {
+	x float64
+	y float64
+	z float64
+}
+
+func (st *state) String() string {
+	return fmt.Sprintf("[X: %.3f, Y: %.3f, Z: %3f]", st.x, st.y, st.z)
+}
+
 func send(s io.Writer, toCh <-chan string, respCh <-chan *response) {
+	st := &state{x: math.NaN(), y: math.NaN(), z: math.NaN()}
+
+	proc := func(resp *response) {
+		fmt.Println("resp: ", resp)
+		if resp.m["sr"] != nil {
+			sr := resp.m["sr"].(map[string]interface{})
+			if sr["mpox"] != nil {
+				st.x = sr["mpox"].(float64)
+			}
+			if sr["mpoy"] != nil {
+				st.y = sr["mpoy"].(float64)
+			}
+			if sr["mpoz"] != nil {
+				st.z = sr["mpoz"].(float64)
+			}
+
+			fmt.Println("st: ", st)
+		}
+	}
+
 	for {
 		select {
 		case cmd := <-toCh:
@@ -88,7 +120,7 @@ func send(s io.Writer, toCh <-chan string, respCh <-chan *response) {
 					// channel is closed
 					return
 				}
-				fmt.Println("resp:", resp)
+				proc(resp)
 				if resp.m["r"] != nil {
 					break
 				}
@@ -98,7 +130,7 @@ func send(s io.Writer, toCh <-chan string, respCh <-chan *response) {
 				// channel is closed
 				return
 			}
-			fmt.Println("resp:", resp)
+			proc(resp)
 		}
 	}
 }
