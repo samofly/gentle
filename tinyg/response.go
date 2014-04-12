@@ -16,11 +16,20 @@ type Response struct {
 	// Mpox is the absolute X coordinate
 	Mpox *float64
 
+	// Ofsz is the X axis offset.
+	Ofsx *float64
+
 	// Mpoy is the absolute Y coordinate
 	Mpoy *float64
 
+	// Ofsy is the Y axis offset
+	Ofsy *float64
+
 	// Mpoz is the absolute Z coordinate
 	Mpoz *float64
+
+	// Ofsz is the Z axis offset
+	Ofsz *float64
 
 	// Footer is a part of response to a command.
 	// See https://github.com/synthetos/TinyG/wiki/JSON-Operation for more details.

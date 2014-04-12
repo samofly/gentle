@@ -18,7 +18,11 @@ func TestParseResponse(t *testing.T) {
 		{
 			name: "full status report",
 			json: `{"r":{"sr":{"mpox":0.000,"mpoy":0.000,"mpoz":0.000,"mpoa":0.000,"ofsx":0.000,"ofsy":0.000,"ofsz":-60.310,"ofsa":0.000,"unit":1,"stat":3,"coor":2,"momo":0,"dist":0,"home":1,"hold":0,"macs":3,"cycs":0,"mots":0,"plan":0}},"f":[1,0,10,9925]}`,
-			resp: &Response{Mpox: f64(0), Mpoy: f64(0), Mpoz: f64(0), Footer: []int{1, 0, 10, 9925}},
+			resp: &Response{
+				Mpox: f64(0), Ofsx: f64(0),
+				Mpoy: f64(0), Ofsy: f64(0),
+				Mpoz: f64(0), Ofsz: f64(-60.310),
+				Footer: []int{1, 0, 10, 9925}},
 		},
 		{
 			name: "moving X report",
