@@ -23,20 +23,26 @@ var (
 
 type response struct {
 	line string
-	m    map[string]interface{}
+	r    *tinygResponse
+}
+
+// tinygResponse represents a parsed TinyG json response.
+type tinygResponse struct {
+	SR map[string]interface{}
+	R  map[string]interface{}
 }
 
 func scan(s io.Reader, ch chan<- *response) {
 	scanner := bufio.NewScanner(s)
 	for scanner.Scan() {
 		line := scanner.Text()
-		var m map[string]interface{}
+		var r tinygResponse
 		if *jsonMode {
-			if err := json.Unmarshal([]byte(line), &m); err != nil {
+			if err := json.Unmarshal([]byte(line), &r); err != nil {
 				log.Fatalf("Failed to parse TinyG response: %q, err: %v", line, err)
 			}
 		}
-		ch <- &response{line: line, m: m}
+		ch <- &response{line: line, r: &r}
 	}
 	if err := scanner.Err(); err != nil {
 		log.Fatal("Failed to read from serial port:", err)
@@ -93,14 +99,14 @@ func send(s io.Writer, toCh <-chan string, respCh <-chan *response) {
 		}
 	}
 
-	proc := func(resp *response) {
-		fmt.Println("resp: ", resp)
+	proc := func(r *tinygResponse) {
+		fmt.Printf("r: %+v\n", r)
 		var sr map[string]interface{}
 		switch {
-		case resp.m["sr"] != nil:
-			sr = resp.m["sr"].(map[string]interface{})
-		case resp.m["r"] != nil && resp.m["r"].(map[string]interface{})["sr"] != nil:
-			sr = resp.m["r"].(map[string]interface{})["sr"].(map[string]interface{})
+		case r.SR != nil:
+			sr = r.SR
+		case r.R != nil && r.R["sr"] != nil:
+			sr = r.R["sr"].(map[string]interface{})
 		default:
 			// No status report
 			return
@@ -116,7 +122,6 @@ func send(s io.Writer, toCh <-chan string, respCh <-chan *response) {
 		}
 
 		fmt.Println("st: ", st)
-
 	}
 
 	for {
@@ -136,8 +141,8 @@ func send(s io.Writer, toCh <-chan string, respCh <-chan *response) {
 					// channel is closed
 					return
 				}
-				proc(resp)
-				if resp.m["r"] != nil {
+				proc(resp.r)
+				if resp.r.R != nil {
 					break
 				}
 			}
@@ -146,7 +151,7 @@ func send(s io.Writer, toCh <-chan string, respCh <-chan *response) {
 				// channel is closed
 				return
 			}
-			proc(resp)
+			proc(resp.r)
 		}
 	}
 }
