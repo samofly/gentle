@@ -1,6 +1,7 @@
 package tinyg
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 )
@@ -36,15 +37,38 @@ type Response struct {
 	Footer []int `json:"-"`
 }
 
+func (r *Response) String() string {
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "Json: %s", r.Json)
+
+	was := false
+	mb := func(name string, val *float64) {
+		if val == nil {
+			return
+		}
+		if !was {
+			was = true
+			fmt.Fprintln(&buf)
+		}
+		fmt.Fprintf(&buf, "%s: %.3f  ", name, *val)
+	}
+	mb("Mpox", r.Mpox)
+	mb("Ofsx", r.Ofsx)
+	mb("Mpoy", r.Mpoy)
+	mb("Ofsy", r.Ofsy)
+	mb("Mpoz", r.Mpoz)
+	mb("Ofsz", r.Ofsz)
+
+	return buf.String()
+}
+
 // ParseResponse parses json response from TinyG.
 func ParseResponse(resp string) (*Response, error) {
-	fmt.Println(resp)
 	var b body
 	if err := json.Unmarshal([]byte(resp), &b); err != nil {
 		return nil, err
 	}
 	var res *Response
-	fmt.Printf("b: %+v\n", b)
 	switch {
 	case b.SR != nil:
 		res = b.SR

@@ -91,7 +91,7 @@ func send(s io.Writer, toCh <-chan string, respCh <-chan *tinyg.Response) {
 	}
 
 	proc := func(r *tinyg.Response) {
-		fmt.Printf("r: %+v\n", r)
+		fmt.Println(r)
 		if r.Mpox != nil {
 			st.x = *r.Mpox
 		}
@@ -102,7 +102,7 @@ func send(s io.Writer, toCh <-chan string, respCh <-chan *tinyg.Response) {
 			st.z = *r.Mpoz
 		}
 
-		fmt.Println("st: ", st)
+		fmt.Println("State: ", st)
 	}
 
 	for {
