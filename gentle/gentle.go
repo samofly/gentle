@@ -28,8 +28,19 @@ type response struct {
 
 // tinygResponse represents a parsed TinyG json response.
 type tinygResponse struct {
-	SR map[string]interface{}
-	R  map[string]interface{}
+	SR *statusReport
+	R  *resp
+}
+
+// r field of tinyg response
+type resp struct {
+	SR *statusReport
+}
+
+type statusReport struct {
+	Mpox *float64
+	Mpoy *float64
+	Mpoz *float64
 }
 
 func scan(s io.Reader, ch chan<- *response) {
@@ -101,24 +112,22 @@ func send(s io.Writer, toCh <-chan string, respCh <-chan *response) {
 
 	proc := func(r *tinygResponse) {
 		fmt.Printf("r: %+v\n", r)
-		var sr map[string]interface{}
-		switch {
-		case r.SR != nil:
-			sr = r.SR
-		case r.R != nil && r.R["sr"] != nil:
-			sr = r.R["sr"].(map[string]interface{})
-		default:
-			// No status report
+		sr := r.SR
+		if sr == nil && r.R != nil {
+			sr = r.R.SR
+		}
+		if sr == nil {
+			// no status report
 			return
 		}
-		if sr["mpox"] != nil {
-			st.x = sr["mpox"].(float64)
+		if sr.Mpox != nil {
+			st.x = *sr.Mpox
 		}
-		if sr["mpoy"] != nil {
-			st.y = sr["mpoy"].(float64)
+		if sr.Mpoy != nil {
+			st.y = *sr.Mpoy
 		}
-		if sr["mpoz"] != nil {
-			st.z = sr["mpoz"].(float64)
+		if sr.Mpoz != nil {
+			st.z = *sr.Mpoz
 		}
 
 		fmt.Println("st: ", st)
