@@ -86,22 +86,37 @@ func (st *state) String() string {
 func send(s io.Writer, toCh <-chan string, respCh <-chan *response) {
 	st := &state{x: math.NaN(), y: math.NaN(), z: math.NaN()}
 
+	must := func(cmd string) {
+		fmt.Println(cmd)
+		if _, err := fmt.Fprintln(s, cmd); err != nil {
+			log.Fatal("Failed to write to serial port: ", err)
+		}
+	}
+
 	proc := func(resp *response) {
 		fmt.Println("resp: ", resp)
-		if resp.m["sr"] != nil {
-			sr := resp.m["sr"].(map[string]interface{})
-			if sr["mpox"] != nil {
-				st.x = sr["mpox"].(float64)
-			}
-			if sr["mpoy"] != nil {
-				st.y = sr["mpoy"].(float64)
-			}
-			if sr["mpoz"] != nil {
-				st.z = sr["mpoz"].(float64)
-			}
-
-			fmt.Println("st: ", st)
+		var sr map[string]interface{}
+		switch {
+		case resp.m["sr"] != nil:
+			sr = resp.m["sr"].(map[string]interface{})
+		case resp.m["r"] != nil && resp.m["r"].(map[string]interface{})["sr"] != nil:
+			sr = resp.m["r"].(map[string]interface{})["sr"].(map[string]interface{})
+		default:
+			// No status report
+			return
 		}
+		if sr["mpox"] != nil {
+			st.x = sr["mpox"].(float64)
+		}
+		if sr["mpoy"] != nil {
+			st.y = sr["mpoy"].(float64)
+		}
+		if sr["mpoz"] != nil {
+			st.z = sr["mpoz"].(float64)
+		}
+
+		fmt.Println("st: ", st)
+
 	}
 
 	for {
@@ -110,10 +125,7 @@ func send(s io.Writer, toCh <-chan string, respCh <-chan *response) {
 			if cmd == "" {
 				continue
 			}
-			fmt.Println(cmd)
-			if _, err := fmt.Fprintln(s, cmd); err != nil {
-				log.Fatal("Failed to write to serial port: ", err)
-			}
+			must(cmd)
 			if !*jsonMode {
 				continue
 			}
@@ -156,6 +168,9 @@ func main() {
 	toCh := make(chan string)
 	go scan(s, respCh)
 	go send(s, toCh, respCh)
+
+	// init
+	toCh <- `{"sr":""}`
 
 	fmt.Fprintln(os.Stderr, "Please, enter g-code lines below:")
 	in := bufio.NewScanner(os.Stdin)
