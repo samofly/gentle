@@ -101,7 +101,6 @@ func send(s io.Writer, toCh <-chan string, respCh <-chan *tinyg.Response) {
 		if r.Mpoz != nil {
 			st.z = *r.Mpoz
 		}
-
 		fmt.Println("State: ", st)
 	}
 
@@ -131,6 +130,10 @@ func send(s io.Writer, toCh <-chan string, respCh <-chan *tinyg.Response) {
 			if resp == nil {
 				// channel is closed
 				return
+			}
+			if !*jsonMode {
+				fmt.Println(resp.Json)
+				continue
 			}
 			proc(resp)
 		}
