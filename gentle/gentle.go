@@ -3,7 +3,6 @@ package main
 
 import (
 	"bufio"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -12,6 +11,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/samofly/gentle/tinyg"
 	"github.com/samofly/serial"
 )
 
@@ -21,39 +21,19 @@ var (
 	jsonMode = flag.Bool("json", true, "Whether to use TinyG json protocol. If false, just send raw gcode")
 )
 
-type response struct {
-	line string
-	r    *tinygResponse
-}
-
-// tinygResponse represents a parsed TinyG json response.
-type tinygResponse struct {
-	SR *statusReport
-	R  *resp
-}
-
-// r field of tinyg response
-type resp struct {
-	SR *statusReport
-}
-
-type statusReport struct {
-	Mpox *float64
-	Mpoy *float64
-	Mpoz *float64
-}
-
-func scan(s io.Reader, ch chan<- *response) {
+func scan(s io.Reader, ch chan<- *tinyg.Response) {
 	scanner := bufio.NewScanner(s)
 	for scanner.Scan() {
 		line := scanner.Text()
-		var r tinygResponse
-		if *jsonMode {
-			if err := json.Unmarshal([]byte(line), &r); err != nil {
-				log.Fatalf("Failed to parse TinyG response: %q, err: %v", line, err)
-			}
+		if !*jsonMode {
+			ch <- &tinyg.Response{Json: line}
+			continue
 		}
-		ch <- &response{line: line, r: &r}
+		r, err := tinyg.ParseResponse(line)
+		if err != nil {
+			log.Fatalf("Failed to parse TinyG response:\n%s\nerr: %v", line, err)
+		}
+		ch <- r
 	}
 	if err := scanner.Err(); err != nil {
 		log.Fatal("Failed to read from serial port:", err)
@@ -100,7 +80,7 @@ func (st *state) String() string {
 	return fmt.Sprintf("[X: %.3f, Y: %.3f, Z: %3f]", st.x, st.y, st.z)
 }
 
-func send(s io.Writer, toCh <-chan string, respCh <-chan *response) {
+func send(s io.Writer, toCh <-chan string, respCh <-chan *tinyg.Response) {
 	st := &state{x: math.NaN(), y: math.NaN(), z: math.NaN()}
 
 	must := func(cmd string) {
@@ -110,24 +90,16 @@ func send(s io.Writer, toCh <-chan string, respCh <-chan *response) {
 		}
 	}
 
-	proc := func(r *tinygResponse) {
+	proc := func(r *tinyg.Response) {
 		fmt.Printf("r: %+v\n", r)
-		sr := r.SR
-		if sr == nil && r.R != nil {
-			sr = r.R.SR
+		if r.Mpox != nil {
+			st.x = *r.Mpox
 		}
-		if sr == nil {
-			// no status report
-			return
+		if r.Mpoy != nil {
+			st.y = *r.Mpoy
 		}
-		if sr.Mpox != nil {
-			st.x = *sr.Mpox
-		}
-		if sr.Mpoy != nil {
-			st.y = *sr.Mpoy
-		}
-		if sr.Mpoz != nil {
-			st.z = *sr.Mpoz
+		if r.Mpoz != nil {
+			st.z = *r.Mpoz
 		}
 
 		fmt.Println("st: ", st)
@@ -150,8 +122,8 @@ func send(s io.Writer, toCh <-chan string, respCh <-chan *response) {
 					// channel is closed
 					return
 				}
-				proc(resp.r)
-				if resp.r.R != nil {
+				proc(resp)
+				if resp.Footer != nil {
 					break
 				}
 			}
@@ -160,7 +132,7 @@ func send(s io.Writer, toCh <-chan string, respCh <-chan *response) {
 				// channel is closed
 				return
 			}
-			proc(resp.r)
+			proc(resp)
 		}
 	}
 }
@@ -178,7 +150,7 @@ func main() {
 	defer s.Close()
 	log.Print("Port opened at ", *ttyDev)
 
-	respCh := make(chan *response)
+	respCh := make(chan *tinyg.Response)
 	toCh := make(chan string)
 	go scan(s, respCh)
 	go send(s, toCh, respCh)
