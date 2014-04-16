@@ -42,14 +42,14 @@ func scan(s io.Reader, ch chan<- *tinyg.Response) {
 	log.Println("Serial port closed")
 }
 
-// sanitizeG handle Gnn commands. cmd is lower-case, trimmed and starts with 'G'
+// sanitizeG handle Gnn commands. cmd is upper-case, trimmed and starts with 'G'
 func sanitizeG(cmd string) (string, error) {
 	return cmd, nil
 }
 
 // sanitizeCmd checks gcode command and returns a canonically-formatted gcode without comments.
 func sanitizeCmd(cmd string) (string, error) {
-	cmd = strings.ToLower(strings.TrimSpace(cmd))
+	cmd = strings.ToUpper(strings.TrimSpace(cmd))
 	if cmd == "" {
 		return "", nil
 	}
