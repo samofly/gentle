@@ -13,14 +13,17 @@
         $('body').terminal(
             function(command, term) {
               socket.send(command + "\n");
-              term.echo(command);
             },
             {
               greetings: 'Please, type your G-code.',
               prompt: '> ',
               onInit: function(term) {
                 socket.onmessage = function(event) {
-                  term.echo(event.data);
+                  var str = event.data;
+                  if (str.length > 0 && str[str.length-1] == "\n") {
+                    str = str.substring(0, str.length-1)
+                  }
+                  term.echo(str);
                 }
               },
               onBlur: function() {
