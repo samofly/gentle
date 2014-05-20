@@ -3,8 +3,28 @@
   <head>
     <meta charset="utf-8">
     <title>Gentle CNC</title>
+    <script src="js/jquery-2.1.1.min.js"></script>
+    <script src="js/jquery.mousewheel-3.1.11.min.js"></script>
+    <script src="js/jquery.terminal-0.8.7.min.js"></script>
+    <link href="css/jquery.terminal.css" rel="stylesheet"/>
+    <script>
+    jQuery(document).ready(function($) {
+        $('body').terminal(
+            function(command, term) {
+              term.echo('hello world');
+            }, 
+            {
+              greetings: 'Please, type your G-code.',
+              prompt: '> ',
+              onBlur: function() {
+                // the height of the body is only 2 lines initialy
+                return false;
+              }
+            }
+        );
+    });
+    </script>
   </head>
   <body>
-    Gentle CNC web interface. You can do nothing yet.
   </body>
 </html>

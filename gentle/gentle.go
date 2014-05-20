@@ -3,6 +3,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"flag"
 	"fmt"
 	"io"
@@ -13,6 +14,7 @@ import (
 	"path"
 	"strings"
 	"sync"
+	"time"
 
 	"code.google.com/p/go.net/websocket"
 
@@ -182,11 +184,7 @@ func handleEmbed(w http.ResponseWriter, req *http.Request) {
 		http.NotFound(w, req)
 		return
 	}
-	if _, err = w.Write(data); err != nil {
-		log.Printf("Error while serving %q: %v", p, err)
-		http.Error(w, "I/O error", 500)
-		return
-	}
+	http.ServeContent(w, req, p, time.Time{}, bytes.NewReader(data))
 }
 
 func runWeb(port int, toCh chan<- string, ps *pubsub) {

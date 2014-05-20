@@ -12,4 +12,4 @@ die() {
 ( go-bindata -version ) || die "Could not find go-bindata. Please, install it with:\n\
   go get github.com/samofly/go-bindata/go-bindata"
 
-go-bindata ./web
+go-bindata -ignore '.*~'  -prefix 'web' ./web ./web/js ./web/css
