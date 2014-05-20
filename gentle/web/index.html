@@ -9,13 +9,20 @@
     <link href="css/jquery.terminal.css" rel="stylesheet"/>
     <script>
     jQuery(document).ready(function($) {
+        var socket = new WebSocket("ws://" + window.location.host + "/ws");
         $('body').terminal(
             function(command, term) {
-              term.echo('hello world');
-            }, 
+              socket.send(command + "\n");
+              term.echo(command);
+            },
             {
               greetings: 'Please, type your G-code.',
               prompt: '> ',
+              onInit: function(term) {
+                socket.onmessage = function(event) {
+                  term.echo(event.data);
+                }
+              },
               onBlur: function() {
                 // the height of the body is only 2 lines initialy
                 return false;
