@@ -43,7 +43,7 @@ func main() {
 
 	s := bufio.NewScanner(os.Stdin)
 	for s.Scan() {
-		if _, err := ws.Write(s.Bytes()); err != nil {
+		if _, err := ws.Write([]byte(fmt.Sprintf("%s\n", s.Text()))); err != nil {
 			log.Fatal(err)
 		}
 	}

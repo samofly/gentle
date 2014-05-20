@@ -8,8 +8,12 @@ import (
 	"io"
 	"log"
 	"math"
+	"net/http"
 	"os"
 	"strings"
+	"sync"
+
+	"code.google.com/p/go.net/websocket"
 
 	"github.com/samofly/gentle/tinyg"
 	"github.com/samofly/serial"
@@ -19,6 +23,8 @@ var (
 	ttyDev   = flag.String("dev", "/dev/ttyUSB0", "Serial device to open")
 	baudRate = flag.Int("rate", 115200, "Baud rate")
 	jsonMode = flag.Bool("json", true, "Whether to use TinyG json protocol. If false, just send raw gcode")
+	web      = flag.Bool("web", false, "Whether to start a web interface")
+	port     = flag.Int("port", 9000, "HTTP port (only used with if -web is active)")
 )
 
 func scan(s io.Reader, ch chan<- *tinyg.Response) {
@@ -80,7 +86,7 @@ func (st *state) String() string {
 	return fmt.Sprintf("[X: %.3f, Y: %.3f, Z: %3f]", st.x, st.y, st.z)
 }
 
-func send(s io.Writer, toCh <-chan string, respCh <-chan *tinyg.Response) {
+func send(s io.Writer, toCh <-chan string, respCh <-chan *tinyg.Response, outCh chan<- string) {
 	st := &state{x: math.NaN(), y: math.NaN(), z: math.NaN()}
 
 	must := func(cmd string) {
@@ -91,7 +97,7 @@ func send(s io.Writer, toCh <-chan string, respCh <-chan *tinyg.Response) {
 	}
 
 	proc := func(r *tinyg.Response) {
-		fmt.Println(r)
+		outCh <- fmt.Sprintf("%v\n", r)
 		if r.Mpox != nil {
 			st.x = *r.Mpox
 		}
@@ -101,7 +107,7 @@ func send(s io.Writer, toCh <-chan string, respCh <-chan *tinyg.Response) {
 		if r.Mpoz != nil {
 			st.z = *r.Mpoz
 		}
-		fmt.Println("State: ", st)
+		outCh <- fmt.Sprintf("State: %v\n", st)
 	}
 
 	for {
@@ -132,10 +138,83 @@ func send(s io.Writer, toCh <-chan string, respCh <-chan *tinyg.Response) {
 				return
 			}
 			if !*jsonMode {
-				fmt.Println(resp.Json)
+				outCh <- fmt.Sprintf("%s\n", resp.Json)
 				continue
 			}
 			proc(resp)
+		}
+	}
+}
+
+type server struct {
+	toCh chan<- string
+	ps   *pubsub
+}
+
+func (s *server) Serve(ws *websocket.Conn) {
+	respCh := make(chan string, 10)
+	s.ps.Sub(respCh)
+	go print(ws, respCh)
+	defer ws.Close()
+	in := bufio.NewScanner(ws)
+	for in.Scan() {
+		s.toCh <- in.Text()
+	}
+	if err := in.Err(); err != nil {
+		log.Printf("Error while reading from connection with %v: %v", ws.RemoteAddr(), err)
+	}
+}
+
+func runWeb(port int, toCh chan<- string, ps *pubsub) {
+	s := &server{toCh, ps}
+	http.Handle("/ws", websocket.Handler(s.Serve))
+	err := http.ListenAndServe(fmt.Sprintf(":%d", port), nil)
+	if err != nil {
+		panic("ListenAndServe: " + err.Error())
+	}
+}
+
+type pubsub struct {
+	mu    sync.Mutex
+	pubCh chan string
+	ch    []chan<- string
+}
+
+func newPubSub() *pubsub {
+	ps := &pubsub{pubCh: make(chan string)}
+	go ps.run()
+	return ps
+}
+
+func (ps *pubsub) Sub(ch chan<- string) {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+	ps.ch = append(ps.ch, ch)
+}
+
+func (ps *pubsub) run() {
+	for msg := range ps.pubCh {
+		ps.mu.Lock()
+		list := ps.ch
+		ps.mu.Unlock()
+		for _, ch := range list {
+			select {
+			case ch <- msg:
+			default:
+			}
+		}
+	}
+}
+
+func (ps *pubsub) Pub() chan<- string {
+	return ps.pubCh
+}
+
+func print(w io.Writer, ch <-chan string) {
+	for msg := range ch {
+		if _, err := fmt.Fprint(w, msg); err != nil {
+			log.Print("Error: failed to deliver message, err: ", err)
+			return
 		}
 	}
 }
@@ -153,10 +232,20 @@ func main() {
 	defer s.Close()
 	log.Print("Port opened at ", *ttyDev)
 
+	ps := newPubSub()
+	printCh := make(chan string, 10)
+	ps.Sub(printCh)
+	go print(os.Stdout, printCh)
+
 	respCh := make(chan *tinyg.Response)
 	toCh := make(chan string)
+
+	if *web {
+		go runWeb(*port, toCh, ps)
+	}
+
 	go scan(s, respCh)
-	go send(s, toCh, respCh)
+	go send(s, toCh, respCh, ps.Pub())
 
 	// init
 	toCh <- `{"sr":""}`
