@@ -10,6 +10,7 @@ import (
 	"math"
 	"net/http"
 	"os"
+	"path"
 	"strings"
 	"sync"
 
@@ -165,9 +166,33 @@ func (s *server) Serve(ws *websocket.Conn) {
 	}
 }
 
+func handleEmbed(w http.ResponseWriter, req *http.Request) {
+	p := path.Clean(req.URL.Path)
+
+	// go-bindata generates relative paths.
+	if strings.HasPrefix(p, "/") {
+		p = p[1:]
+	}
+	if p == "" {
+		p = "index.html"
+	}
+	data, err := Asset(p)
+	if err != nil {
+		log.Printf("Error: Asset(%q): %v", p, err)
+		http.NotFound(w, req)
+		return
+	}
+	if _, err = w.Write(data); err != nil {
+		log.Printf("Error while serving %q: %v", p, err)
+		http.Error(w, "I/O error", 500)
+		return
+	}
+}
+
 func runWeb(port int, toCh chan<- string, ps *pubsub) {
 	s := &server{toCh, ps}
 	http.Handle("/ws", websocket.Handler(s.Serve))
+	http.HandleFunc("/", handleEmbed)
 	err := http.ListenAndServe(fmt.Sprintf(":%d", port), nil)
 	if err != nil {
 		panic("ListenAndServe: " + err.Error())
