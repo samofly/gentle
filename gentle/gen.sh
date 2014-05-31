@@ -13,3 +13,4 @@ die() {
   go get github.com/samofly/go-bindata/go-bindata"
 
 go-bindata -ignore '.*~'  -prefix 'web' ./web ./web/js ./web/css
+gofmt -w bindata.go
