@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"reflect"
 	"testing"
 )
 
@@ -80,6 +81,58 @@ func TestJsonSplit(t *testing.T) {
 		}
 		if !bytes.Equal(tok, []byte(tt.tok)) {
 			t.Errorf("%q: js.Split(%s) = _, %s, _. Want tok: %s", tt.name, tt.in, string(tok), tt.tok)
+			continue
+		}
+	}
+}
+
+func TestJsonScanner(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want []map[string]interface{}
+	}{
+		{
+			name: "empty",
+		},
+		{
+			name: "single message",
+			in:   `{"a":"b"}`,
+			want: []map[string]interface{}{
+				map[string]interface{}{"a": "b"},
+			},
+		},
+		{
+			name: "two messages",
+			in:   `{"a":"b"}{"c":"d"}`,
+			want: []map[string]interface{}{
+				map[string]interface{}{"a": "b"},
+				map[string]interface{}{"c": "d"},
+			},
+		},
+	}
+	for _, tt := range tests {
+		r := newJsonScanner(bytes.NewBufferString(tt.in))
+		ok := true
+		for _, want := range tt.want {
+			var cur map[string]interface{}
+			if err := r.Scan(&cur); err != nil {
+				t.Errorf("%q: Failed to read json: %v", tt.name, err)
+				ok = false
+				break
+			}
+			if !reflect.DeepEqual(cur, want) {
+				t.Errorf("%q: unexpected message: %v, want: %v", cur, want)
+				ok = false
+				break
+			}
+		}
+		if !ok {
+			continue
+		}
+		var m map[string]interface{}
+		if err := r.Scan(&m); err != io.EOF {
+			t.Errorf("%q: wanted io.EOF, got: %v", err)
 			continue
 		}
 	}

@@ -1,12 +1,36 @@
 package main
 
 import (
+	"bufio"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 )
 
 var errUnexpectedClosingBrace = errors.New("unexpected '}'. Input is not a valid stream of json objects")
+
+type jsonScanner struct {
+	s *bufio.Scanner
+}
+
+func newJsonScanner(r io.Reader) *jsonScanner {
+	s := bufio.NewScanner(r)
+	var js jsonSplitter
+	s.Split(js.Split)
+	return &jsonScanner{s: s}
+}
+
+// ReadJson reads the next message from the Reader.
+func (js *jsonScanner) Scan(v interface{}) error {
+	if !js.s.Scan() {
+		if js.s.Err() != nil {
+			return js.s.Err()
+		}
+		return io.EOF
+	}
+	return json.Unmarshal(js.s.Bytes(), v)
+}
 
 // jsonSplitter splits incoming data into json messages.
 // It's intended to be used with bufio.Scanner.
