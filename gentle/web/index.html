@@ -18,7 +18,7 @@
         var socket = new WebSocket("ws://" + window.location.host + "/ws");
         $('body').terminal(
             function(command, term) {
-              socket.send(command + "\n");
+              socket.send(JSON.stringify({"raw": command}));
             },
             {
               greetings: 'Please, type your G-code.',

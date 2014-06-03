@@ -4,6 +4,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -154,14 +155,32 @@ type server struct {
 	ps   *pubsub
 }
 
+type webRequest struct {
+	Raw string `json:"raw"`
+}
+
 func (s *server) Serve(ws *websocket.Conn) {
+	defer log.Printf("Connection closed.")
+	defer ws.Close()
 	respCh := make(chan string, 10)
 	s.ps.Sub(respCh)
 	go print(ws, respCh)
-	defer ws.Close()
+
 	in := bufio.NewScanner(ws)
+	var js jsonSplitter
+	in.Split(js.Split)
 	for in.Scan() {
-		s.toCh <- in.Text()
+		log.Printf("incoming json message: %s", in.Text())
+		var req webRequest
+		if err := json.Unmarshal(in.Bytes(), &req); err != nil {
+			log.Printf("Failed to unmarshal incoming request: %v, err: %v", in.Bytes(), err)
+			return
+		}
+		if req.Raw == "" {
+			log.Printf("Only raw messages are currently supported")
+			continue
+		}
+		s.toCh <- req.Raw
 	}
 	if err := in.Err(); err != nil {
 		log.Printf("Error while reading from connection with %v: %v", ws.RemoteAddr(), err)
