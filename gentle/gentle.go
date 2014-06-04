@@ -101,7 +101,7 @@ func send(s io.Writer, toCh <-chan string, respCh <-chan *tinyg.Response, outCh 
 	}
 
 	proc := func(r *tinyg.Response) {
-		outCh <- fmt.Sprintf("%v\n", r)
+		outCh <- fmt.Sprintf("%v", r)
 		if r.Mpox != nil {
 			st.x = *r.Mpox
 		}
@@ -111,7 +111,7 @@ func send(s io.Writer, toCh <-chan string, respCh <-chan *tinyg.Response, outCh 
 		if r.Mpoz != nil {
 			st.z = *r.Mpoz
 		}
-		outCh <- fmt.Sprintf("State: %v\n", st)
+		outCh <- fmt.Sprintf("State: %v", st)
 	}
 
 	for {
@@ -142,7 +142,7 @@ func send(s io.Writer, toCh <-chan string, respCh <-chan *tinyg.Response, outCh 
 				return
 			}
 			if !*jsonMode {
-				outCh <- fmt.Sprintf("%s\n", resp.Json)
+				outCh <- fmt.Sprintf("%s", resp.Json)
 				continue
 			}
 			proc(resp)
@@ -155,6 +155,25 @@ type server struct {
 	ps   *pubsub
 }
 
+func downstream(w io.Writer, ch <-chan string) {
+	for msg := range ch {
+		resp := &webResponse{Raw: msg}
+		data, err := json.Marshal(resp)
+		if err != nil {
+			log.Printf("Error: failed to marshal json for %+v, err: %v", resp, err)
+			return
+		}
+		if _, err := w.Write(data); err != nil {
+			log.Print("Error: failed to deliver message, err: ", err)
+			return
+		}
+	}
+}
+
+type webResponse struct {
+	Raw string `json:"raw"`
+}
+
 type webRequest struct {
 	Raw string `json:"raw"`
 }
@@ -164,7 +183,7 @@ func (s *server) Serve(ws *websocket.Conn) {
 	defer ws.Close()
 	respCh := make(chan string, 10)
 	s.ps.Sub(respCh)
-	go print(ws, respCh)
+	go downstream(ws, respCh)
 
 	in := bufio.NewScanner(ws)
 	var js jsonSplitter
@@ -254,6 +273,9 @@ func (ps *pubsub) Pub() chan<- string {
 
 func print(w io.Writer, ch <-chan string) {
 	for msg := range ch {
+		if !strings.HasSuffix(msg, "\n") {
+			msg = msg + "\n"
+		}
 		if _, err := fmt.Fprint(w, msg); err != nil {
 			log.Print("Error: failed to deliver message, err: ", err)
 			return
