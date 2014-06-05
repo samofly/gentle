@@ -23,7 +23,14 @@ type Machine interface {
 	// Sub returns a channel to follow message from the machine.
 	// Messages will be sent to the channel and discarded, if sending to the channel would block.
 	// Thus, it's safe to not read from this channel.
-	Sub() <-chan string
+	Sub() <-chan *Message
+}
+
+// Message is a message from the connected machine to the listeners.
+type Message struct {
+	// Raw is a raw output from the CNC machine. It's up to the listener to interpret this.
+	// The primary goal is to enable manual control of the CNC machine by a human operator.
+	Raw string `json:"raw"`
 }
 
 // New starts a new machine available over the provided connection.
@@ -51,7 +58,7 @@ func (m *machine) Send(cmd string) {
 	m.toCh <- cmd
 }
 
-func (m *machine) Sub() <-chan string {
+func (m *machine) Sub() <-chan *Message {
 	return m.ps.Sub()
 }
 
@@ -93,7 +100,7 @@ func (m *machine) send(toCh <-chan string, respCh <-chan *tinyg.Response) {
 	}
 
 	proc := func(r *tinyg.Response) {
-		m.ps.Pub(fmt.Sprintf("%v", r))
+		m.ps.Pub(&Message{Raw: fmt.Sprintf("%v", r)})
 		if r.Mpox != nil {
 			st.x = *r.Mpox
 		}
@@ -103,7 +110,7 @@ func (m *machine) send(toCh <-chan string, respCh <-chan *tinyg.Response) {
 		if r.Mpoz != nil {
 			st.z = *r.Mpoz
 		}
-		m.ps.Pub(fmt.Sprintf("State: %v", st))
+		m.ps.Pub(&Message{Raw: fmt.Sprintf("State: %v", st)})
 	}
 
 	for {
@@ -134,7 +141,7 @@ func (m *machine) send(toCh <-chan string, respCh <-chan *tinyg.Response) {
 				return
 			}
 			if !m.jsonMode {
-				m.ps.Pub(fmt.Sprintf("%s", resp.Json))
+				m.ps.Pub(&Message{Raw: fmt.Sprintf("%s", resp.Json)})
 				continue
 			}
 			proc(resp)
@@ -155,18 +162,18 @@ func (st *state) String() string {
 
 type pubsub struct {
 	mu    sync.Mutex
-	pubCh chan string
-	ch    []chan<- string
+	pubCh chan *Message
+	ch    []chan<- *Message
 }
 
 func newPubSub() *pubsub {
-	ps := &pubsub{pubCh: make(chan string)}
+	ps := &pubsub{pubCh: make(chan *Message)}
 	go ps.run()
 	return ps
 }
 
-func (ps *pubsub) Sub() <-chan string {
-	ch := make(chan string)
+func (ps *pubsub) Sub() <-chan *Message {
+	ch := make(chan *Message)
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
 	ps.ch = append(ps.ch, ch)
@@ -187,6 +194,6 @@ func (ps *pubsub) run() {
 	}
 }
 
-func (ps *pubsub) Pub(msg string) {
+func (ps *pubsub) Pub(msg *Message) {
 	ps.pubCh <- msg
 }

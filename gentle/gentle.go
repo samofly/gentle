@@ -60,12 +60,11 @@ type server struct {
 	m engine.Machine
 }
 
-func downstream(w io.Writer, ch <-chan string) {
+func downstream(w io.Writer, ch <-chan *engine.Message) {
 	for msg := range ch {
-		resp := &webResponse{Raw: msg}
-		data, err := json.Marshal(resp)
+		data, err := json.Marshal(msg)
 		if err != nil {
-			log.Printf("Error: failed to marshal json for %+v, err: %v", resp, err)
+			log.Printf("Error: failed to marshal json for %+v, err: %v", msg, err)
 			return
 		}
 		if _, err := w.Write(data); err != nil {
@@ -73,10 +72,6 @@ func downstream(w io.Writer, ch <-chan string) {
 			return
 		}
 	}
-}
-
-type webResponse struct {
-	Raw string `json:"raw"`
 }
 
 type webRequest struct {
@@ -139,12 +134,21 @@ func runWeb(port int, m engine.Machine) {
 	}
 }
 
-func print(w io.Writer, ch <-chan string) {
+func print(w io.Writer, ch <-chan *engine.Message) {
 	for msg := range ch {
-		if !strings.HasSuffix(msg, "\n") {
-			msg = msg + "\n"
+		str := msg.Raw
+		if str == "" {
+			data, err := json.Marshal(msg)
+			if err != nil {
+				log.Print("Error: failed to marshal a message to json, err: ", err)
+				return
+			}
+			str = string(data)
 		}
-		if _, err := fmt.Fprint(w, msg); err != nil {
+		if !strings.HasSuffix(str, "\n") {
+			str = str + "\n"
+		}
+		if _, err := fmt.Fprint(w, str); err != nil {
 			log.Print("Error: failed to deliver message, err: ", err)
 			return
 		}
