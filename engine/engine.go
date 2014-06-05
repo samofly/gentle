@@ -30,7 +30,10 @@ type Machine interface {
 type Message struct {
 	// Raw is a raw output from the CNC machine. It's up to the listener to interpret this.
 	// The primary goal is to enable manual control of the CNC machine by a human operator.
-	Raw string `json:"raw"`
+	Raw string `json:"raw,omitempty"`
+
+	// State is a CNC state, such the position of the control point.
+	State *State `json:"state,omitempty"`
 }
 
 // New starts a new machine available over the provided connection.
@@ -88,7 +91,7 @@ func (m *machine) scan(ch chan<- *tinyg.Response) {
 }
 
 func (m *machine) send(toCh <-chan string, respCh <-chan *tinyg.Response) {
-	st := &state{x: math.NaN(), y: math.NaN(), z: math.NaN()}
+	st := &State{X: math.NaN(), Y: math.NaN(), Z: math.NaN()}
 
 	must := func(cmd string) {
 		fmt.Println(cmd)
@@ -102,15 +105,16 @@ func (m *machine) send(toCh <-chan string, respCh <-chan *tinyg.Response) {
 	proc := func(r *tinyg.Response) {
 		m.ps.Pub(&Message{Raw: fmt.Sprintf("%v", r)})
 		if r.Mpox != nil {
-			st.x = *r.Mpox
+			st.X = *r.Mpox
 		}
 		if r.Mpoy != nil {
-			st.y = *r.Mpoy
+			st.Y = *r.Mpoy
 		}
 		if r.Mpoz != nil {
-			st.z = *r.Mpoz
+			st.Z = *r.Mpoz
 		}
-		m.ps.Pub(&Message{Raw: fmt.Sprintf("State: %v", st)})
+		tmp := *st
+		m.ps.Pub(&Message{State: &tmp})
 	}
 
 	for {
@@ -149,15 +153,15 @@ func (m *machine) send(toCh <-chan string, respCh <-chan *tinyg.Response) {
 	}
 }
 
-// state is the cnc machine state
-type state struct {
-	x float64
-	y float64
-	z float64
+// State is the cnc machine state
+type State struct {
+	X float64 `json:"x"`
+	Y float64 `json:"y"`
+	Z float64 `json:"z"`
 }
 
-func (st *state) String() string {
-	return fmt.Sprintf("[X: %.3f, Y: %.3f, Z: %3f]", st.x, st.y, st.z)
+func (st *State) String() string {
+	return fmt.Sprintf("[X: %.3f, Y: %.3f, Z: %3f]", st.X, st.Y, st.Z)
 }
 
 type pubsub struct {
@@ -173,7 +177,7 @@ func newPubSub() *pubsub {
 }
 
 func (ps *pubsub) Sub() <-chan *Message {
-	ch := make(chan *Message)
+	ch := make(chan *Message, 10)
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
 	ps.ch = append(ps.ch, ch)
