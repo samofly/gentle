@@ -9,17 +9,15 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"math"
 	"net/http"
 	"os"
 	"path"
 	"strings"
-	"sync"
 	"time"
 
 	"code.google.com/p/go.net/websocket"
 
-	"github.com/samofly/gentle/tinyg"
+	"github.com/samofly/gentle/engine"
 	"github.com/samofly/serial"
 )
 
@@ -30,27 +28,6 @@ var (
 	web      = flag.Bool("web", false, "Whether to start a web interface")
 	port     = flag.Int("port", 9000, "HTTP port (only used with if -web is active)")
 )
-
-func scan(s io.Reader, ch chan<- *tinyg.Response) {
-	scanner := bufio.NewScanner(s)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if !*jsonMode {
-			ch <- &tinyg.Response{Json: line}
-			continue
-		}
-		r, err := tinyg.ParseResponse(line)
-		if err != nil {
-			log.Fatalf("Failed to parse TinyG response:\n%s\nerr: %v", line, err)
-		}
-		ch <- r
-	}
-	if err := scanner.Err(); err != nil {
-		log.Fatal("Failed to read from serial port:", err)
-	}
-	close(ch)
-	log.Println("Serial port closed")
-}
 
 // sanitizeG handle Gnn commands. cmd is upper-case, trimmed and starts with 'G'
 func sanitizeG(cmd string) (string, error) {
@@ -79,80 +56,8 @@ func sanitizeCmd(cmd string) (string, error) {
 	return cmd, nil
 }
 
-// state is the cnc machine state
-type state struct {
-	x float64
-	y float64
-	z float64
-}
-
-func (st *state) String() string {
-	return fmt.Sprintf("[X: %.3f, Y: %.3f, Z: %3f]", st.x, st.y, st.z)
-}
-
-func send(s io.Writer, toCh <-chan string, respCh <-chan *tinyg.Response, outCh chan<- string) {
-	st := &state{x: math.NaN(), y: math.NaN(), z: math.NaN()}
-
-	must := func(cmd string) {
-		fmt.Println(cmd)
-		if _, err := fmt.Fprintln(s, cmd); err != nil {
-			log.Fatal("Failed to write to serial port: ", err)
-		}
-	}
-
-	proc := func(r *tinyg.Response) {
-		outCh <- fmt.Sprintf("%v", r)
-		if r.Mpox != nil {
-			st.x = *r.Mpox
-		}
-		if r.Mpoy != nil {
-			st.y = *r.Mpoy
-		}
-		if r.Mpoz != nil {
-			st.z = *r.Mpoz
-		}
-		outCh <- fmt.Sprintf("State: %v", st)
-	}
-
-	for {
-		select {
-		case cmd := <-toCh:
-			if cmd == "" {
-				continue
-			}
-			must(cmd)
-			if !*jsonMode {
-				continue
-			}
-			// Waiting for TinyG to confirm it
-			for {
-				resp := <-respCh
-				if resp == nil {
-					// channel is closed
-					return
-				}
-				proc(resp)
-				if resp.Footer != nil {
-					break
-				}
-			}
-		case resp := <-respCh:
-			if resp == nil {
-				// channel is closed
-				return
-			}
-			if !*jsonMode {
-				outCh <- fmt.Sprintf("%s", resp.Json)
-				continue
-			}
-			proc(resp)
-		}
-	}
-}
-
 type server struct {
-	toCh chan<- string
-	ps   *pubsub
+	m engine.Machine
 }
 
 func downstream(w io.Writer, ch <-chan string) {
@@ -181,9 +86,8 @@ type webRequest struct {
 func (s *server) Serve(ws *websocket.Conn) {
 	defer log.Printf("Connection closed.")
 	defer ws.Close()
-	respCh := make(chan string, 10)
-	s.ps.Sub(respCh)
-	go downstream(ws, respCh)
+
+	go downstream(ws, s.m.Sub())
 
 	in := bufio.NewScanner(ws)
 	var js jsonSplitter
@@ -199,7 +103,7 @@ func (s *server) Serve(ws *websocket.Conn) {
 			log.Printf("Only raw messages are currently supported")
 			continue
 		}
-		s.toCh <- req.Raw
+		s.m.Send(req.Raw)
 	}
 	if err := in.Err(); err != nil {
 		log.Printf("Error while reading from connection with %v: %v", ws.RemoteAddr(), err)
@@ -225,50 +129,14 @@ func handleEmbed(w http.ResponseWriter, req *http.Request) {
 	http.ServeContent(w, req, p, time.Time{}, bytes.NewReader(data))
 }
 
-func runWeb(port int, toCh chan<- string, ps *pubsub) {
-	s := &server{toCh, ps}
+func runWeb(port int, m engine.Machine) {
+	s := &server{m: m}
 	http.Handle("/ws", websocket.Handler(s.Serve))
 	http.HandleFunc("/", handleEmbed)
 	err := http.ListenAndServe(fmt.Sprintf(":%d", port), nil)
 	if err != nil {
 		panic("ListenAndServe: " + err.Error())
 	}
-}
-
-type pubsub struct {
-	mu    sync.Mutex
-	pubCh chan string
-	ch    []chan<- string
-}
-
-func newPubSub() *pubsub {
-	ps := &pubsub{pubCh: make(chan string)}
-	go ps.run()
-	return ps
-}
-
-func (ps *pubsub) Sub(ch chan<- string) {
-	ps.mu.Lock()
-	defer ps.mu.Unlock()
-	ps.ch = append(ps.ch, ch)
-}
-
-func (ps *pubsub) run() {
-	for msg := range ps.pubCh {
-		ps.mu.Lock()
-		list := ps.ch
-		ps.mu.Unlock()
-		for _, ch := range list {
-			select {
-			case ch <- msg:
-			default:
-			}
-		}
-	}
-}
-
-func (ps *pubsub) Pub() chan<- string {
-	return ps.pubCh
 }
 
 func print(w io.Writer, ch <-chan string) {
@@ -296,29 +164,22 @@ func main() {
 	defer s.Close()
 	log.Print("Port opened at ", *ttyDev)
 
-	ps := newPubSub()
-	printCh := make(chan string, 10)
-	ps.Sub(printCh)
-	go print(os.Stdout, printCh)
+	m := engine.New(s, *jsonMode)
 
-	respCh := make(chan *tinyg.Response)
-	toCh := make(chan string)
+	go print(os.Stdout, m.Sub())
 
 	if *web {
-		go runWeb(*port, toCh, ps)
+		go runWeb(*port, m)
 	}
 
-	go scan(s, respCh)
-	go send(s, toCh, respCh, ps.Pub())
-
 	// init
-	toCh <- `{"sr":""}`
+	m.Send(`{"sr":""}`)
 
 	fmt.Fprintln(os.Stderr, "Please, enter g-code lines below:")
 	in := bufio.NewScanner(os.Stdin)
 	for in.Scan() {
 		if !*jsonMode {
-			toCh <- strings.TrimSpace(in.Text())
+			m.Send(strings.TrimSpace(in.Text()))
 			continue
 		}
 		gcode, err := sanitizeCmd(in.Text())
@@ -332,7 +193,7 @@ func main() {
 		if gcode == "" {
 			continue
 		}
-		toCh <- fmt.Sprintf(`{"gc":"%s"}`, gcode)
+		m.Send(fmt.Sprintf(`{"gc":"%s"}`, gcode))
 	}
 	if err := in.Err(); err != nil {
 		log.Fatal("Failed to read from stdin: ", err)
