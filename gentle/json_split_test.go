@@ -131,8 +131,8 @@ func TestJsonScanner(t *testing.T) {
 			continue
 		}
 		var m map[string]interface{}
-		if err := r.Scan(&m); err != io.EOF {
-			t.Errorf("%q: wanted io.EOF, got: %v", err)
+		if err := r.Scan(&m); err != io.ErrUnexpectedEOF {
+			t.Errorf("%q: wanted io.ErrUnexpectedEOF, got: %v", tt.name, err)
 			continue
 		}
 	}
