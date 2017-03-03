@@ -9,7 +9,7 @@ import (
 	"log"
 	"os"
 
-	"code.google.com/p/go.net/websocket"
+	"golang.org/x/net/websocket"
 )
 
 var url = flag.String("url", "ws://echo.websocket.org:80", "URL to connect to")
